@@ -1,0 +1,269 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#1. CREATING POS TAGS
+
+#Load true dataset
+true = pd.read_csv('C:\\Users\\xrist\\Desktop\\Thesis\\datasets\\train-fit dataset\\general news\\True.csv')
+fake = pd.read_csv('C:\\Users\\xrist\\Desktop\\Thesis\\datasets\\train-fit dataset\\general news\\Fake.csv')
+
+#Create the label for fake and true news
+true['label'] = 0
+fake['label'] = 1
+
+#Keep the relevenat columns
+true_fit = true[['title', 'label']]
+fake_fit = fake[['title', 'label']]
+
+#Join the 2 datasets to create the learning set
+fit_mix  = pd.concat([true_fit,fake_fit]).reset_index(drop=True)
+
+pip install truecase
+import truecase
+#Make the capitalisation nice
+fitmix2['title'] = fitmix2['title'].apply(lambda x:truecase.get_true_case(x))
+
+#Tokenisation
+from nltk.tokenize import word_tokenize
+token_data = fitmix2['title'].apply(lambda x:word_tokenize(x))
+fitmix2['token_data'] = token_data
+
+#Pos tagging
+from nltk import pos_tag
+tag = fitmix2['token_data'].apply(lambda x:pos_tag(x))
+
+lst = []
+for idx,x in enumerate(tag):
+    my_dict = {key: value for key, value in tag[idx]}
+    lst.append(my_dict)
+
+fitmix2.to_csv('data with pos tags.csv', index = False)    
+
+
+#2. CREATING FEATURES BASED OFF THE POS TAGS
+
+df =  pd.read_csv('data with pos tags.csv')
+
+#Word count
+lst = []
+for idx,x in enumerate(df.title):
+    lst.append(df.title[idx].count(" ") + 1)
+df['word_count'] = lst
+
+#Function for the counts
+def count_pos_tags(column, tag):
+    from nltk import word_tokenize, pos_tag
+    lst = []
+    for idx,x in enumerate(column):
+        lst.append(sum(1 for word, pos in pos_tag(word_tokenize(x)) if pos.startswith(tag)))
+    return lst
+
+#Number of modals
+modal_count = count_pos_tags(df.title, 'MD')
+df['modal_count'] = modal_count
+
+#Number of verbs
+vcount = count_pos_tags(df.title, 'VB')
+df['verb_count'] = vcount
+
+#Number of adjectives
+jcount = count_pos_tags(df.title, 'JJ')
+df['adjective_count'] = jcount
+
+#Number of adverbs
+acount = count_pos_tags(df.title, 'RB')
+df['adverb_count'] = acount
+
+#Number of proper nouns
+pncount = count_pos_tags(df.title, 'NNP')
+df['proper_noun_count'] = pncount
+
+#Can't remember what this does but looks important
+past_particle_verb = count_pos_tags(df.title, 'VBN')
+df['past_particle'] = past_particle_verb
+past_tense_verb = count_pos_tags(df.title, 'VBD')
+df['past_tense_verb'] = past_tense_verb
+df['past_verb'] = df['past_particle'] + df['past_tense_verb']
+df = df.drop(['past_particle', 'past_tense_verb'],axis = 1)
+
+#Number of total nouns (including proper_nouns)
+ncount = count_pos_tags(df.title, 'NN')
+
+#Number of nouns
+nouns = abs(np.subtract(np.array(pncount), np.array(ncount)))
+df['noun_count'] = nouns
+
+#Complex Features 
+df['emotiveness'] = (df['adjective_count']+ df['adverb_count']) / (df['noun_count'] + df['verb_count'])
+df['modifiers']  = df['adjective_count'] + df['adverb_count']
+
+#Save our stuff
+df.to_csv('pos tags, counts, emotiveness.csv', index = False)
+
+#Create a heatmap to see how we are doing
+X = df.loc[:,['word_count', 'emotiveness', 'noun_count', 'proper_noun_count', 'modifiers', 'modal_count', 'label']]
+corr = X.corr()
+# Set up the matplotlib plot configuration
+#
+f, ax = plt.subplots(figsize=(12, 10))
+#
+# Generate a mask for upper triangle
+#
+mask = np.triu(np.ones_like(corr, dtype=bool))
+#
+# Configure a custom diverging colormap
+#
+cmap = sns.diverging_palette(230, 20, as_cmap=True)
+#
+# Draw the heatmap
+#
+sns.heatmap(corr, annot=True, mask = mask, cmap=cmap)
+
+#Getting ready to examine our feelings
+pip install vaderSentiment
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+SA = SentimentIntensityAnalyzer()
+
+#Sentiment analysis
+sa = []
+for idx,x in enumerate(df['title']):
+    sa.append(SA.polarity_scores(x))
+
+#Create sentiment labels
+negative = pd.DataFrame([d['neg'] for d in sa])
+positive = pd.DataFrame([d['pos'] for d in sa])
+neutral = pd.DataFrame([d['neu'] for d in sa])
+compound = pd.DataFrame([d['compound'] for d in sa])
+#Attach sentiment labels
+df['compound'] = compound
+df['positive'] = positive
+df['negative'] = negative
+df['neutral'] = neutral
+
+#Save our stuff
+df.to_csv('dataset with sentiment.csv', index = False)
+
+#4.Fitting models
+#Getting funny values so we gonna remove them
+df.replace([np.inf, -np.inf], np.nan, inplace=True)
+nan = df.loc[pd.isna(df).any(1), :].index
+for x in nan:
+    df = df.drop(index = x, axis = 1)
+df.loc[pd.isna(df).any(1), :].index
+
+#Save the final dataset with all our features
+df.to_csv('final dataset with all features.csv', index=False)
+
+
+
+df = df.sample(frac = 1)
+correlation = df.iloc[:,5:]
+correlation['target variable'] = df.label
+corr = correlation.corr()
+corr
+#Set up the matplotlib plot configuration
+#
+f, ax = plt.subplots(figsize=(12, 10))
+#
+# Generate a mask for upper traingle
+#
+mask = np.triu(np.ones_like(corr, dtype=bool))
+#
+# Configure a custom diverging colormap
+#
+cmap = sns.diverging_palette(230, 20, as_cmap=True)
+#
+# Draw the heatmap
+#
+sns.heatmap(corr, annot=True,mask = mask, cmap=cmap)
+
+X = df.iloc[:,5:]
+y = df.label
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, random_state = 0)
+
+from sklearn.preprocessing import StandardScaler
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_test = sc.transform(X_test)
+
+from sklearn.neighbors import KNeighborsClassifier
+classifier = KNeighborsClassifier(n_neighbors = 5, metric = 'minkowski', p = 2)
+classifier.fit(X_train, y_train)
+y_pred = classifier.predict(X_test)
+
+from sklearn.metrics import confusion_matrix,accuracy_score
+cm = confusion_matrix(y_test, y_pred)
+ac = accuracy_score(y_test,y_pred)from sklearn.metrics import classification_report
+print(classification_report(y_test,y_pred))
+
+from sklearn.naive_bayes import GaussianNB
+gnb = GaussianNB()
+gnb.fit(X_train, y_train)
+y_pred = gnb.predict(X_test)
+print(classification_report(y_test,y_pred))
+
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+vif_data = pd.DataFrame()
+vif_data["feature"] = X.columns
+  
+# calculating VIF for each feature
+vif_data["VIF"] = [variance_inflation_factor(X.values, i)
+                          for i in range(len(X.columns))]
+
+pip install tabulate
+from tabulate import tabulate
+print(tabulate(vif_data, headers=['feature', 'VIF'], tablefmt="grid", showindex="always"))
+
+vif_data
+sample = df['title'].iloc[:250]
+sample.to_csv('analyse.txt', sep='\t')  
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(df['token_data'])
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+import numpy as np
+#https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.CountVectorizer.html
+countVec = CountVectorizer(max_features= 5000, stop_words='english', min_df=.01, max_df=.90)
+
+
+#use CountVectorizer.fit(self, raw_documents[, y] to learn vocabulary dictionary of all tokens in raw documents
+#raw documents in this case will betweetsFrameWords["Text"] (processed text)
+countVec.fit(df["title"])
+#useful debug, get an idea of the item list you generated
+list(countVec.vocabulary_.items())
+
+
+#convert to bag of words
+#sparse matrix representation? (README: could use an edit/explanation)
+countVec_count = countVec.transform(df["token_data"])
+
+#make array from number of occurrences
+occ = np.asarray(countVec_count.sum(axis=0)).ravel().tolist()
+
+#make a new data frame with columns term and occurrences, meaning word and number of occurences
+bowListFrame = pd.DataFrame({'term': countVec.get_feature_names_out(), 'occurrences': occ})
+print(bowListFrame)
+
+#now, convert to a more useful ranking system, tf-idf weights
+#TfidfTransformer: scale raw word counts to a weighted ranking using the
+#https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
+tweetTransformer = TfidfTransformer()
+
+#initial fit representation using transformer object
+tweetWeights = tweetTransformer.fit_transform(countVec_count)
+
+#follow similar process to making new data frame with word occurrences, but with term weights
+tweetWeightsFin = np.asarray(tweetWeights.mean(axis=0)).ravel().tolist()
+
+#now that we've done Tfid, make a dataframe with weights and names
+tweetWeightFrame = pd.DataFrame({'term': countVec.get_feature_names_out(), 'weight': tweetWeightsFin})
+print(tweetWeightFrame)
+tweetWeightFrame.sort_values(by='weight', ascending=False).head(20)   
