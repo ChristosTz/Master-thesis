@@ -1,2 +1,2 @@
 
-This is a project I did as my Master's Thesis in the Data Science and Society program in the University of Tilburg. If you are interested, you can read the Thesis paper that i have uploaded
+This is a project I did as my Master's Thesis in the Data Science and Society program in the University of Tilburg. It explores the use of machine learning to detect fake news based solely on article headlines. Using three datasets—general world news (training), political news, and entertainment news (testing for generalisation)—the study evaluates the performance of several classifiers such as Random Forests, K-nearest neighbours, Naive Bayes and Support Vector Machine.
